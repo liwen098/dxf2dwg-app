@@ -1,0 +1,179 @@
+name: Build DXF2DWG APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 创建 Android 工程结构
+        run: |
+          mkdir -p app/src/main/java/com/example/dxf2dwg
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p gradle/wrapper
+
+      - name: 写入 build.gradle (项目级)
+        run: |
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
+          }
+          allprojects {
+              repositories { google(); mavenCentral() }
+          }
+          EOF
+
+      - name: 写入 settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          include ':app'
+          EOF
+
+      - name: 写入 gradle wrapper
+        run: |
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          EOF
+
+      - name: 写入 app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.example.dxf2dwg'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.dxf2dwg"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes { debug { minifyEnabled false } }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+          }
+          EOF
+
+      - name: 写入 AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+              <application
+                  android:allowBackup="true"
+                  android:label="DXF2DWG"
+                  android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: 写入布局文件
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="24dp">
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="DXF → DWG 转换器"
+                  android:textSize="20sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="30dp"/>
+              <Button
+                  android:id="@+id/btn_pick"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="选择 DXF 文件"/>
+              <Button
+                  android:id="@+id/btn_convert"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="开始转换"
+                  android:layout_marginTop="12dp"
+                  android:enabled="false"/>
+              <TextView
+                  android:id="@+id/tv_status"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:layout_marginTop="20dp"
+                  android:text="请先选择文件"
+                  android:textSize="14sp"/>
+          </LinearLayout>
+          EOF
+
+      - name: 写入 MainActivity.java
+        run: |
+          cat > app/src/main/java/com/example/dxf2dwg/MainActivity.java << 'EOF'
+          package com.example.dxf2dwg;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.widget.Button;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  Button btnPick = findViewById(R.id.btn_pick);
+                  Button btnConvert = findViewById(R.id.btn_convert);
+                  TextView tvStatus = findViewById(R.id.tv_status);
+                  btnPick.setOnClickListener(v -> {
+                      tvStatus.setText("演示版：已选择 sample.dxf");
+                      btnConvert.setEnabled(true);
+                      Toast.makeText(this, "请放置真实 DXF 文件到手机存储", Toast.LENGTH_SHORT).show();
+                  });
+                  btnConvert.setOnClickListener(v -> {
+                      tvStatus.setText("转换完成！\n（演示版 - 完整版需集成 ODA 库）");
+                      Toast.makeText(this, "DWG 已保存到下载文件夹", Toast.LENGTH_LONG).show();
+                  });
+              }
+          }
+          EOF
+
+      - name: 写入 gradlew
+        run: |
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          exec java -jar gradle/wrapper/gradle-wrapper.jar "$@"
+          EOF
+          chmod +x gradlew
+
+      - name: 装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 编译 APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
