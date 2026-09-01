@@ -1,93 +1,20 @@
 name: Build DXF2DWG APK
+
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: 创建 Android 工程结构
-        run: |
-          mkdir -p app/src/main/java/com/example/dxf2dwg
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
-          mkdir -p gradle/wrapper
-
-      - name: 写入 build.gradle (项目级)
-        run: |
-          cat > build.gradle << 'EOF'
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
-          }
-          EOF
-
-      - name: 写入 settings.gradle
-        run: |
-          cat > settings.gradle << 'EOF'
-          include ':app'
-          EOF
-
-      - name: 写入 gradle wrapper
-        run: |
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          EOF
-
-      - name: 写入 app/build.gradle
-        run: |
-          cat > app/build.gradle << 'EOF'
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.example.dxf2dwg'
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.example.dxf2dwg"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              buildTypes { debug { minifyEnabled false } }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.11.0'
-          }
-          EOF
-
-      - name: 写入 AndroidManifest.xml
-        run: |
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-              <application
-                  android:allowBackup="true"
-                  android:label="DXF2DWG"
-                  android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
+      - name: 拉取代码
+        uses: actions/checkout@v4
 
       - name: 写入布局文件
         run: |
+          mkdir -p app/src/main/res/layout
           cat > app/src/main/res/layout/activity_main.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -127,6 +54,7 @@ jobs:
 
       - name: 写入 MainActivity.java
         run: |
+          mkdir -p app/src/main/java/com/example/dxf2dwg
           cat > app/src/main/java/com/example/dxf2dwg/MainActivity.java << 'EOF'
           package com.example.dxf2dwg;
           import android.app.Activity;
@@ -155,18 +83,59 @@ jobs:
           }
           EOF
 
-      - name: 写入 gradlew
+      - name: 写入构建文件
         run: |
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          exec java -jar gradle/wrapper/gradle-wrapper.jar "$@"
+          mkdir -p app
+          cat > app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              compileSdkVersion 30
+              buildToolsVersion "30.0.3"
+              defaultConfig {
+                  applicationId "com.example.dxf2dwg"
+                  minSdkVersion 21
+                  targetSdkVersion 30
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+          }
+          dependencies {}
           EOF
-          chmod +x gradlew
+          
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:4.1.3'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: 安装 Gradle 并生成 Wrapper
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gradle
+          gradle wrapper --gradle-version 7.0
+          chmod +x ./gradlew
 
       - name: 装 JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
       - name: 编译 APK
